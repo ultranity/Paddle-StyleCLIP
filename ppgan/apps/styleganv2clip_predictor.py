@@ -320,15 +320,15 @@ if __name__ == '__main__':
                         help="path to first image latent codes")
     parser.add_argument("--neutral",
                         type=str,
-                        default='woman',
+                        default=None,
                         help="neutral description")
     parser.add_argument("--target",
                         type=str,
-                        default='girl',
+                        default=None,
                         help="neutral description")
     parser.add_argument("--direction_path",
                         type=str,
-                        default='fs3-ffhq-config-f.npy',
+                        default=None,
                         help="path to latent editing directions")
     parser.add_argument("--direction_offset",
                         type=float,
