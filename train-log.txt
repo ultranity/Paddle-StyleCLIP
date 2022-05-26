@@ -1,0 +1,56 @@
+[05/19 19:35:44] ppgan INFO: Downloading stylegan2-ffhq-config-f.pdparams from https://paddlegan.bj.bcebos.com/models/stylegan2-ffhq-config-f.pdparams to /home/aistudio/.cache/ppgan/stylegan2-ffhq-config-f.pdparams
+100%|████████████████████████████████| 194006/194006 [00:02<00:00, 72709.93it/s]
+W0519 19:35:51.973740  1169 gpu_context.cc:278] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.1, Runtime API Version: 10.1
+W0519 19:35:51.977663  1169 gpu_context.cc:306] device: 0, cuDNN Version: 7.6.
+total channels to manipulate: 6048
+
+Style manipulation in layer "0"
+100%|███████████████████████████████████████| 512/512 [1:46:22<00:00, 12.40s/it]
+
+Style manipulation in layer "2"
+100%|███████████████████████████████████████| 512/512 [1:45:44<00:00, 12.39s/it]
+
+Style manipulation in layer "3"
+100%|███████████████████████████████████████| 512/512 [1:45:41<00:00, 12.38s/it]
+
+Style manipulation in layer "5"
+100%|███████████████████████████████████████| 512/512 [1:45:41<00:00, 12.39s/it]
+
+Style manipulation in layer "6"
+100%|███████████████████████████████████████| 512/512 [1:45:41<00:00, 12.39s/it]
+
+Style manipulation in layer "8"
+100%|███████████████████████████████████████| 512/512 [1:45:39<00:00, 12.39s/it]
+
+Style manipulation in layer "9"
+100%|███████████████████████████████████████| 512/512 [1:45:39<00:00, 12.37s/it]
+
+Style manipulation in layer "11"
+100%|███████████████████████████████████████| 512/512 [1:45:39<00:00, 12.38s/it]
+
+Style manipulation in layer "12"
+100%|███████████████████████████████████████| 512/512 [1:45:39<00:00, 12.39s/it]
+
+Style manipulation in layer "14"
+100%|███████████████████████████████████████| 512/512 [1:45:45<00:00, 12.37s/it]
+
+Style manipulation in layer "15"
+100%|█████████████████████████████████████████| 256/256 [52:48<00:00, 12.37s/it]
+
+Style manipulation in layer "17"
+100%|█████████████████████████████████████████| 256/256 [53:00<00:00, 12.44s/it]
+
+Style manipulation in layer "18"
+100%|█████████████████████████████████████████| 128/128 [26:32<00:00, 12.45s/it]
+
+Style manipulation in layer "20"
+100%|█████████████████████████████████████████| 128/128 [26:34<00:00, 12.45s/it]
+
+Style manipulation in layer "21"
+100%|███████████████████████████████████████████| 64/64 [13:16<00:00, 12.46s/it]
+
+Style manipulation in layer "23"
+100%|███████████████████████████████████████████| 64/64 [13:17<00:00, 12.46s/it]
+
+Style manipulation in layer "24"
+100%|███████████████████████████████████████████| 32/32 [06:38<00:00, 12.44s/it]

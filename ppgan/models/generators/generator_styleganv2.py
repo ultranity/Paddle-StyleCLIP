@@ -48,6 +48,7 @@ class ModulatedConv2D(nn.Layer):
         upsample=False,
         downsample=False,
         blur_kernel=[1, 3, 3, 1],
+        need_modulate = False,
     ):
         super().__init__()
 
@@ -57,7 +58,8 @@ class ModulatedConv2D(nn.Layer):
         self.out_channel = out_channel
         self.upsample = upsample
         self.downsample = downsample
-
+        self.need_modulate = need_modulate
+        
         if upsample:
             factor = 2
             p = (len(blur_kernel) - factor) - (kernel_size - 1)
@@ -93,11 +95,14 @@ class ModulatedConv2D(nn.Layer):
             f"{self.__class__.__name__}({self.in_channel}, {self.out_channel}, {self.kernel_size}, "
             f"upsample={self.upsample}, downsample={self.downsample})")
 
-    def forward(self, inputs, style):
+    def forward(self, inputs, style, weight=None):
         batch, in_channel, height, width = inputs.shape
+        if style is None and weight is not None: style = self.modulation(weight)
 
-        style = self.modulation(style).reshape((batch, 1, in_channel, 1, 1))
+        elif self.need_modulate: style = self.modulation(style)
+        style = style.reshape((batch, 1, in_channel, 1, 1))
         weight = self.scale * self.weight * style
+        del style
 
         if self.demodulate:
             demod = paddle.rsqrt((weight * weight).sum([2, 3, 4]) + 1e-8)
@@ -165,8 +170,7 @@ class ConstantInput(nn.Layer):
             (1, channel, size, size),
             default_initializer=nn.initializer.Normal())
 
-    def forward(self, inputs):
-        batch = inputs.shape[0]
+    def forward(self, batch):
         out = self.input.tile((batch, 1, 1, 1))
 
         return out
@@ -250,8 +254,9 @@ class StyleGANv2Generator(nn.Layer):
         super().__init__()
 
         self.size = size
-
         self.style_dim = style_dim
+        self.log_size = int(math.log(size, 2))
+        self.num_layers = (self.log_size - 2) * 2 + 1
 
         layers = [PixelNorm()]
 
@@ -275,6 +280,33 @@ class StyleGANv2Generator(nn.Layer):
             512: 32 * channel_multiplier,
             1024: 16 * channel_multiplier,
         }
+        self.channels_lst =[]
+        self.w_idx_lst = [
+            0,1,        # 4
+            1,2,3,      # 8
+            3,4,5,      # 16
+            5,6,7,      # 32
+            7,8,9,      # 64
+            9,10,11,    # 128
+            11,12,13,   # 256
+            13,14,15,   # 512
+            15,16,17,   # 1024
+        ]
+        self.style_layers = [
+            0,    #1,
+            2, 3, #4,
+            5, 6, #7,
+            8, 9, #10,
+            11, 12,# 13,
+            14, 15,# 16,
+            17, 18,# 19,
+            20, 21,# 22,
+            23, 24,# 25
+        ]
+        
+        if self.log_size != 10:
+            self.w_idx_lst = self.w_idx_lst[:-(3*(10-self.log_size))]
+            self.style_layers = self.style_layers[:-(2*(10-self.log_size))]
 
         self.input = ConstantInput(self.channels[4])
         self.conv1 = StyledConv(self.channels[4],
@@ -287,9 +319,7 @@ class StyleGANv2Generator(nn.Layer):
                              2 if is_concat else self.channels[4],
                              style_dim,
                              upsample=False)
-
-        self.log_size = int(math.log(size, 2))
-        self.num_layers = (self.log_size - 2) * 2 + 1
+        self.channels_lst.extend([self.channels[4], self.channels[4]])
 
         self.convs = nn.LayerList()
         self.upsamples = nn.LayerList()
@@ -328,7 +358,8 @@ class StyleGANv2Generator(nn.Layer):
 
             self.to_rgbs.append(
                 ToRGB(out_channel * 2 if is_concat else out_channel, style_dim))
-
+            
+            self.channels_lst.extend([in_channel, out_channel, out_channel])
             in_channel = out_channel
 
         self.n_latent = self.log_size * 2 - 2
@@ -352,18 +383,108 @@ class StyleGANv2Generator(nn.Layer):
     def get_latent(self, inputs):
         return self.style(inputs)
 
-    def get_mean_style(self):
-        mean_style = None
-        with paddle.no_grad():
-            for i in range(10):
-                style = self.mean_latent(1024)
-                if mean_style is None:
-                    mean_style = style
-                else:
-                    mean_style += style
+    def get_latents(self, inputs, truncation=1.0, truncation_cutoff=None, truncation_latent=None):
+        styles = self.style(inputs).unsqueeze(1).tile([1, self.n_latent, 1])
+        if truncation < 1.0:
+            if truncation_latent is None:
+                truncation_latent = self.get_mean_style()
+            if truncation_cutoff is None:
+                styles = truncation_latent + truncation * (styles - truncation_latent)
+            else:
+                styles[:,:truncation_cutoff] = truncation_latent[:,:truncation_cutoff] + truncation * (styles[:,:truncation_cutoff] - truncation_latent[:,:truncation_cutoff])
+        return styles
 
-        mean_style /= 10
+    @paddle.no_grad()
+    def get_mean_style(self, n_sample=10, n_latent=1024):
+        mean_style = None
+        for i in range(n_sample):
+            style = self.mean_latent(n_latent)
+            if mean_style is None:
+                mean_style = style
+            else:
+                mean_style += style
+
+        mean_style /= n_sample
         return mean_style
+    
+    def mean_latent_S(self, n_latent):
+        latent_in = paddle.randn((n_latent, self.style_dim))
+        latent = self.style(latent_in)
+        latent = self.style_affine_(latent).mean(0, keepdim=True)
+        return latent
+
+    def get_latent_S(self, inputs):
+        return self.style_affine_(self.style(inputs))
+
+    @paddle.no_grad()
+    def get_mean_style_S(self, n_sample=10, n_latent=1024):
+        mean_style = None
+        for i in range(n_sample):
+            style = self.mean_latent_s(n_latent)
+            if mean_style is None:
+                mean_style = style
+            else:
+                mean_style += style
+
+        mean_style /= n_sample
+        return mean_style
+
+    def style_affine(self, latent):
+        if latent.ndim < 3: latent = latent.unsqueeze(1).tile((1, self.n_latent, 1))
+        latent_ = []
+        latent_.append(self.conv1.conv.modulation(latent[:, 0]))
+        latent_.append(self.to_rgb1.conv.modulation(latent[:, 1]))
+
+        i = 1
+        for conv1, conv2, to_rgb in zip(self.convs[::2], self.convs[1::2], self.to_rgbs):
+            latent_.append(conv1.conv.modulation(latent[:, i+0]))
+            latent_.append(conv2.conv.modulation(latent[:, i+1]))
+            latent_.append(to_rgb.conv.modulation(latent[:, i+2]))
+            i += 2
+        return latent_ #paddle.concat(latent_, axis=1)
+
+    def synthesis(self, latent, noise=None, randomize_noise=True):
+        out = self.input(latent[0].shape[0])
+        if noise is None:
+            if randomize_noise:
+                noise = [None] * self.num_layers #[paddle.randn(getattr(self.noises, f"noise_{i}").shape) for i in range(self.num_layers)]#
+            else:
+                noise = [
+                    getattr(self.noises, f"noise_{i}")
+                    for i in range(self.num_layers)
+                ]
+
+        out = self.conv1(out, latent[0], noise=noise[0])
+
+        skip = self.to_rgb1(out, latent[1])
+
+        i = 2
+        if self.is_concat:
+            noise_i = 1
+
+            outs = []
+            for conv1, conv2, to_rgb in zip(self.convs[::2], self.convs[1::2],
+                                            self.to_rgbs):
+                out = conv1(out, latent[i],
+                            noise=noise[(noise_i + 1) // 2])  ### 1 for 2
+                out = conv2(out,
+                            latent[i + 1],
+                            noise=noise[(noise_i + 2) // 2])  ### 1 for 2
+                skip = to_rgb(out, latent[i + 2], skip)
+
+                i += 3
+                noise_i += 2
+        else:
+            for conv1, conv2, noise1, noise2, to_rgb in zip(
+                    self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2],
+                    self.to_rgbs):
+                out = conv1(out, latent[i], noise=noise1)
+                out = conv2(out, latent[i + 1], noise=noise2)
+                skip = to_rgb(out, latent[i + 2], skip)
+
+                i += 3
+
+        return skip#image = skip
 
     def forward(
         self,
@@ -371,31 +492,26 @@ class StyleGANv2Generator(nn.Layer):
         return_latents=False,
         inject_index=None,
         truncation=1.0,
+        truncation_cutoff=None,
         truncation_latent=None,
         input_is_latent=False,
+        #input_is_affined_latent=False,
         noise=None,
         randomize_noise=True,
     ):
         if not input_is_latent:
             styles = [self.style(s) for s in styles]
 
-        if noise is None:
-            if randomize_noise:
-                noise = [None] * self.num_layers
-            else:
-                noise = [
-                    getattr(self.noises, f"noise_{i}")
-                    for i in range(self.num_layers)
-                ]
-
         if truncation < 1.0:
             style_t = []
             if truncation_latent is None:
                 truncation_latent = self.get_mean_style()
             for style in styles:
-                style_t.append(truncation_latent + truncation *
-                               (style - truncation_latent))
-
+                if truncation_cutoff is None:
+                    style = truncation_latent + truncation * (style - truncation_latent)
+                else:
+                    style[:,:truncation_cutoff] = truncation_latent[:,:truncation_cutoff] + truncation * (style[:,:truncation_cutoff] - truncation_latent[:,:truncation_cutoff])
+                style_t.append(style)
             styles = style_t
 
         if len(styles) < 2:
@@ -417,41 +533,12 @@ class StyleGANv2Generator(nn.Layer):
 
             latent = paddle.concat([latent, latent2], 1)
 
-        out = self.input(latent)
-        out = self.conv1(out, latent[:, 0], noise=noise[0])
+        #if not input_is_affined_latent:
+        styles = self.style_affine(latent)
 
-        skip = self.to_rgb1(out, latent[:, 1])
-
-        i = 1
-        if self.is_concat:
-            noise_i = 1
-
-            outs = []
-            for conv1, conv2, to_rgb in zip(self.convs[::2], self.convs[1::2],
-                                            self.to_rgbs):
-                out = conv1(out, latent[:, i],
-                            noise=noise[(noise_i + 1) // 2])  ### 1 for 2
-                out = conv2(out,
-                            latent[:, i + 1],
-                            noise=noise[(noise_i + 2) // 2])  ### 1 for 2
-                skip = to_rgb(out, latent[:, i + 2], skip)
-
-                i += 2
-                noise_i += 2
-        else:
-            for conv1, conv2, noise1, noise2, to_rgb in zip(
-                    self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2],
-                    self.to_rgbs):
-                out = conv1(out, latent[:, i], noise=noise1)
-                out = conv2(out, latent[:, i + 1], noise=noise2)
-                skip = to_rgb(out, latent[:, i + 2], skip)
-
-                i += 2
-
-        image = skip
+        image = self.synthesis(styles, noise, randomize_noise)
 
         if return_latents:
             return image, latent
-
         else:
             return image, None

@@ -1,273 +1,130 @@
+# StyleCLIP: Text-Driven Manipulation of StyleGAN Imagery
+## 1. 简介
 
-English | [简体中文](./README_cn.md)
+StyleGAN V2 的任务是使用风格向量进行image generation，而Clip guided Editing 则是利用CLIP (Contrastive Language-Image Pre-training ) 多模态预训练模型计算文本输入对应的风格向量变化，用文字表述来对图像进行编辑操纵风格向量进而操纵生成图像的属性。相比于Editing 模块，StyleCLIP不受预先统计的标注属性限制，可以通过语言描述自由控制图像编辑。
 
-# PaddleGAN
+原论文中使用 Pixel2Style2Pixel 的 升级模型 Encode4Editing 计算要编辑的代表图像的风格向量，为尽量利用PaddleGAN提供的预训练模型本次复现中仍使用Pixel2Style2Pixel计算得到风格向量进行实验，重构效果略有下降，期待PaddleGAN跟进e4e相关工作。
 
-PaddleGAN provides developers with high-performance implementation of classic and SOTA Generative Adversarial Networks, and supports developers to quickly build, train and deploy GANs for academic, entertainment and industrial usage.
 
-GAN-Generative Adversarial Network, was praised by "the Father of Convolutional Networks"  **Yann LeCun (Yang Likun)**  as **[One of the most interesting ideas in the field of computer science in the past decade]**. It's the one research area in deep learning that AI researchers are most concerned about.
+## 2. 复现
+StyleCLIP 模型 需要使用简介重对应提到的几个预训练模型，
+本次复现使用PPGAN 提供的 在FFHQ数据集上进行预训练的StyleGAN V2 模型作为生成器，并使用Pixel2Style2Pixel模型将待编辑图像转换为对应风格向量。
 
-<div align='center'>
-  <img src='./docs/imgs/ppgan.jpg'>
+除本repo外还需要安装 Paddle-CLIP 依赖
+```
+pip install paddleclip
+```
+
+[模型训练日志及权重](https://pan.baidu.com/s/1IvFH-_cWf4p5BcHICfLgIA#ep6m)
+
+### 编辑结果展示
+
+风格向量对应的图像:
+<div align="center">
+    <img src="docs/imgs/stylegan2fitting-sample.png" width="300"/>
 </div>
 
-[![License](https://img.shields.io/badge/license-Apache%202-red.svg)](LICENSE)![python version](https://img.shields.io/badge/python-3.6+-orange.svg)
+设置
+> direction_offset = [ -1, 0, 1, 2, 3, 4, 5]
+> beta_threshold = 0.1
 
-## 🎪 Hot Activities
+从 'face' 到 'boy face' 编辑得到的图像:
 
-- 2021.4.15~4.22
-
-  GAN 7 Days Course Camp: Baidu Senior Research Developers help you learn the basic and advanced GAN knowledge in 7 days!
-
-  **Courses videos and related materials: https://aistudio.baidu.com/aistudio/course/introduce/16651**
-
-## 🚀 Recent Updates
-
-- 👶 **Young or Old？：[StyleGAN V2 Face Editing](./docs/en_US/tutorials/styleganv2editing.md)-Time Machine！** 👨‍🦳
-  - **[Online Toturials](https://aistudio.baidu.com/aistudio/projectdetail/3251280?channelType=0&channel=0)**
-  <div align='center'>
-    <img src='https://user-images.githubusercontent.com/48054808/146649047-765ec085-0a2c-4c88-9527-744836448651.gif' width='200'/>
-  </div>
-
-- 🔥 **Latest Release: [PP-MSVSR](./docs/en_US/tutorials/video_super_resolution.md)** 🔥
-    - **Video Super Resolution SOTA models**
-  <div align='center'>
-    <img src='https://user-images.githubusercontent.com/48054808/144848981-00c6ad21-0702-4381-9544-becb227ed9f0.gif' width='300'/>
-  </div>
-  
-- 😍 **Boy or Girl？：[StyleGAN V2 Face Editing](./docs/en_US/tutorials/styleganv2editing.md)-Changing genders！** 😍
-  - **[Online Toturials](https://aistudio.baidu.com/aistudio/projectdetail/2565277?contributionType=1)**
-  <div align='center'>
-    <img src='https://user-images.githubusercontent.com/48054808/141226707-58bd661e-2102-4fb7-8e18-c794a6b59ee8.gif' width='300'/>
-  </div>
-
-- 👩‍🚀 **A Space Odyssey ：[LapStyle](./docs/zh_CN/tutorials/lap_style.md) image translation take you travel around the universe**👨‍🚀
-
-  - **[Online Toturials](https://aistudio.baidu.com/aistudio/projectdetail/2343740?contributionType=1)**
-
-    <div align='center'>
-      <img src='https://user-images.githubusercontent.com/48054808/133392621-9a552c46-841b-4fe4-bb24-7b0cbf86616c.gif' width='250'/>
-      <img src='https://user-images.githubusercontent.com/48054808/133392630-c5329c4c-bc10-406e-a853-812a2b1f0fa6.gif' width='250'/>
-      <img src='https://user-images.githubusercontent.com/48054808/133392652-f4811b1e-0676-4402-808b-a4c96c611368.gif' width='250'/>
-    </div>
-
-- 🧙‍♂️ **Latest Creative Project：create magic/dynamic profile for your student ID in Hogwarts** 🧙‍♀️
-
-  - **[Online Toturials](https://aistudio.baidu.com/aistudio/projectdetail/2288888?channelType=0&channel=0)**
-
-    <div align='center'>
-      <img src='https://ai-studio-static-online.cdn.bcebos.com/da1c51844ac048aa8d4fa3151be95215eee75d8bb488409d92ec17285b227c2c' width='200'/>
-    </div>
-
-- **💞 Add Face Morphing function💞 : you can perfectly merge any two faces and make the new face get any facial expressions!**
-
-  - Tutorials: https://aistudio.baidu.com/aistudio/projectdetail/2254031
-
-    <div align='center'>
-      <img src='https://user-images.githubusercontent.com/48054808/128299870-66a73bb3-57a4-4985-aadc-8ddeab048145.gif' width='200'/>
-    </div>
-
-- **Publish a new version of First Oder Motion model by having two impressive features:**
-  - High resolution 512x512
-  - Face Enhancement
-  - Tutorials: https://github.com/PaddlePaddle/PaddleGAN/blob/develop/docs/zh_CN/tutorials/motion_driving.md
-
-- **New image translation ability--transfer photo into oil painting style:**
-
-  - Complete tutorials for deployment: https://github.com/wzmsltw/PaintTransformer
-
-    <div align='center'>
-      <img src='https://user-images.githubusercontent.com/48054808/129904830-8b87e310-ea51-4aff-b29b-88920ee82447.png' width='500'/>
-    </div>
-
-## Document Tutorial
-
-#### **Installation**
-
-* Environment dependence:
-   - PaddlePaddle >= 2.1.0
-   - Python >= 3.6
-   - CUDA >= 10.1
-* [Full installation tutorial](https://github.com/PaddlePaddle/PaddleGAN/blob/develop/docs/zh_CN/install.md)
-
-#### **Starter Tutorial**
-
-- [Quick start](./docs/en_US/get_started.md)
-- [Data Preparation](./docs/en_US/data_prepare.md)
-- [Instruction of APIs](./docs/en_US/apis/apps.md)
-- [Instruction of Config Files](./docs/en_US/config_doc.md)
-
-## Model Tutorial
-
-* [Pixel2Pixel](./docs/en_US/tutorials/pix2pix_cyclegan.md)
-* [CycleGAN](./docs/en_US/tutorials/pix2pix_cyclegan.md)
-* [LapStyle](./docs/en_US/tutorials/lap_style.md)
-* [PSGAN](./docs/en_US/tutorials/psgan.md)
-* [First Order Motion Model](./docs/en_US/tutorials/motion_driving.md)
-* [FaceParsing](./docs/en_US/tutorials/face_parse.md)
-* [AnimeGANv2](./docs/en_US/tutorials/animegan.md)
-* [U-GAT-IT](./docs/en_US/tutorials/ugatit.md)
-* [Photo2Cartoon](./docs/en_US/tutorials/photo2cartoon.md)
-* [Wav2Lip](./docs/en_US/tutorials/wav2lip.md)
-* [Single Image Super Resolution(SISR)](./docs/en_US/tutorials/single_image_super_resolution.md)
-  * Including: RealSR, ESRGAN, LESRCNN, PAN, DRN
-* [Video Super Resolution(VSR)](./docs/en_US/tutorials/video_super_resolution.md)
-  * Including: ⭐ PP-MSVSR ⭐, EDVR, BasicVSR, BasicVSR++
-* [StyleGAN2](./docs/en_US/tutorials/styleganv2.md)
-* [Pixel2Style2Pixel](./docs/en_US/tutorials/pixel2style2pixel.md)
-* [StarGANv2](docs/en_US/tutorials/starganv2.md)
-* [MPR Net](./docs/en_US/tutorials/mpr_net.md)
-* [FaceEnhancement](./docs/en_US/tutorials/face_enhancement.md)
-
-
-## Composite Application
-
-* [Video restore](./docs/en_US/tutorials/video_restore.md)
-
-## Online Tutorial
-
-You can run those projects in the [AI Studio](https://aistudio.baidu.com/aistudio/projectoverview/public/1?kw=paddlegan) to learn how to use the models above:
-
-|Online Tutorial      |    link  |
-|--------------|-----------|
-|Motion Driving-multi-personal "Mai-ha-hi" | [Click and Try](https://aistudio.baidu.com/aistudio/projectdetail/1603391) |
-|Restore the video of Beijing hundreds years ago|[Click and Try](https://aistudio.baidu.com/aistudio/projectdetail/1161285)|
-|Motion Driving-When "Su Daqiang" sings "unravel" |[Click and Try](https://aistudio.baidu.com/aistudio/projectdetail/1048840)|
-
-## Examples
-
-### Face Morphing
-
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/129020371-75de20d1-705b-44b1-8254-e09710124244.gif'width='700' />
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-boy.png" width="640"/>
 </div>
 
-### Image Translation
+从'face' 到 'happy face' 编辑得到的图像:
 
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119464966-d5c1c000-bd75-11eb-9696-9bb75357229f.gif'width='700' height='200'/>
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-happy.png" width="640"/>
+</div>
+
+从'face' 到 'angry face' 编辑得到的图像:
+
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-angry.png" width="640"/>
 </div>
 
 
-### Old video restore
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119469496-fc81f580-bd79-11eb-865a-5e38482b1ae8.gif' width='700'/>
+从'face' 到 'face with long hair' 编辑得到的图像:
+
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-long-hair.png" width="640"/>
+</div>
+
+
+从'face' 到 'face with curl hair' (卷发) 编辑得到的图像:
+
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-curl-hair.png" width="640"/>
+</div>
+
+从'head with black hair'（黑发） 到 'head with gold hair'（金发）编辑得到的图像:
+
+<div align="center">
+    <img src="docs/imgs/stylegan2clip-sample-gold-hair.png" width="640"/>
 </div>
 
 
 
-### Motion driving
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119469551-0a377b00-bd7a-11eb-9117-e4871c8fb9c0.gif' width='700'>
-</div>
+## 3. 使用方法
+### 训练
+本次仅复现论文中效果最好的 Global Direction 方法。
 
+StyleClip训练过程分两步：
+1. 提取风格向量并统计
 
-### Super resolution
+```
+python styleclip_getf.py
+```
+2. 结合CLIP模型计算转换矩阵
 
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119469753-3e12a080-bd7a-11eb-9cde-4fa01b3201ab.png'width='700' height='250'/>
-</div>
+```
+python ppgan/apps/styleganv2clip_predictor.py extract
+```
 
+### 编辑
+详见 [demo](./demo.ipynb)
 
+用户使用如下命令中对图像属性进行编辑：
 
-### Makeup shifter
+```
+cd applications/
+python -u tools/styleganv2clip.py \
+       --latent <替换为要编辑的风格向量的路径> \
+       --output_path <替换为生成图片存放的文件夹> \
+       --weight_path <替换为你的预训练模型路径> \
+       --model_type ffhq-config-f \
+       --size 1024 \
+       --style_dim 512 \
+       --n_mlp 8 \
+       --channel_multiplier 2 \
+       --direction_path <替换为存放统计数据的文件路径> \
+       --neutral <替换为对原图像的描述，如face> \
+       --target <替换为对目标图像的描述> \
+       --beta_threshold 0.12 \
+       --direction_offset 5
+       --cpu
+```
 
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119469834-4ff44380-bd7a-11eb-93b6-05b705dcfbf2.png'width='700' height='250'/>
-</div>
+**参数说明:**
+- latent: 要编辑的代表图像的风格向量的路径。可来自于Pixel2Style2Pixel生成的`dst.npy`或StyleGANv2 Fitting模块生成的`dst.fitting.npy`
+- output_path: 生成图片存放的文件夹
+- weight_path: 或StyleGANv2 预训练模型路径
+- model_type: 模型类型,当前使用: `ffhq-config-f`
+- size: 模型参数，输出图片的分辨率
+- style_dim: 模型参数，风格z的维度
+- n_mlp: 模型参数，风格z所输入的多层感知层的层数
+- channel_multiplier: 模型参数，通道乘积，影响模型大小和生成图片质量
+- direction_path: 存放CLIP统计向量的文件的路径。默认为空，即使用'fs3.npy'。若不使用，请在命令中去除
+- neutral: 对原图像的中性描述，如 face
+- target: 为对目标图像的描述，如 young face
+- beta_threshold: 向量调整阈值
+- direction_offset: 属性的偏移强度
+- cpu: 是否使用cpu推理，若不使用，请在命令中去除
 
-
-
-### Face cartoonization
-
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119469952-6bf7e500-bd7a-11eb-89ad-9a78b10bd4ab.png'width='700' height='250'/>
-</div>
-
-
-
-### Realistic face cartoonization
-
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119470028-7f0ab500-bd7a-11eb-88e9-78a6b9e2e319.png'width='700' height='250'/>
-</div>
-
-
-
-### Photo animation
-
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119470099-9184ee80-bd7a-11eb-8b12-c9400fe01266.png'width='700' height='250'/>
-</div>
-
-
-
-### Lip-syncing
-
-<div align='center'>
-  <img src='https://user-images.githubusercontent.com/48054808/119470166-a6618200-bd7a-11eb-9f98-58052ce21b14.gif'width='700'>
-</div>
-
-
-
-## Changelog
-- v2.1.0 (2021.12.8)
-   - Release a video super-resolution model PP-MSVSR and multiple pre-training weights
-   - Release several SOTA video super-resolution models and their pre-trained models such as BasicVSR, IconVSR and BasicVSR++
-   - Release the light-weight motion-driven model(Volume compression: 229M->10.1M), and optimized the fusion effect
-   - Release high-resolution FOMM and Wav2Lip pre-trained models
-   - Release several interesting applications based on StyleGANv2, such as face inversion, face fusion and face editing
-   - Released Baidu’s self-developed and effective style transfer model LapStyle and its interesting applications, and launched the official website [experience page](https://www.paddlepaddle.org.cn/paddlegan)
-   - Release a light-weight image super-resolution model PAN
-
-- v2.0.0 (2021.6.2)
-  - Release [Fisrt Order Motion](https://github.com/PaddlePaddle/PaddleGAN/blob/develop/docs/en_US/tutorials/motion_driving.md) model and multiple pre-training weights
-  - Release applications that support [Multi-face action driven](https://github.com/PaddlePaddle/PaddleGAN/blob/develop/docs/en_US/tutorials/motion_driving.md#1-test-for-face)
-  - Release video super-resolution model [EDVR](https://github.com/PaddlePaddle/PaddleGAN/blob/develop/docs/en_US/tutorials/video_super_resolution.md) and multiple pre-training weights
-  - Release the contents of [7-day punch-in training camp](https://github.com/PaddlePaddle/PaddleGAN/tree/develop/education) corresponding to PaddleGAN
-  - Enhance the robustness of PaddleGAN running on the windows platform
-
-- v2.0.0-beta (2021.3.1)
-  - Completely switch the API of Paddle 2.0.0 version.
-  - Release of super-resolution models: ESRGAN, RealSR, LESRCNN, DRN, etc.
-  - Release lip migration model: Wav2Lip
-  - Release anime model of Street View: AnimeGANv2
-  - Release face animation model: U-GAT-IT, Photo2Cartoon
-  - Release SOTA generation model: StyleGAN2
-
-- v0.1.0 (2020.11.02)
-  - Release first version, supported models include Pixel2Pixel, CycleGAN, PSGAN. Supported applications include video frame interpolation, super resolution, colorize images and videos, image animation.
-  - Modular design and friendly interface.
-
-## Community
-
-Scan OR Code below to join [PaddleGAN QQ Group：1058398620], you can get offical technical support  here and communicate with other developers/friends. Look forward to your participation!
-
-<div align='center'>
-  <img src='./docs/imgs/qq.png'width='250' height='300'/>
-</div>
-
-### PaddleGAN Special Interest Group（SIG）
-
-It was first proposed and used by [ACM（Association for Computing Machinery)](https://en.wikipedia.org/wiki/Association_for_Computing_Machinery) in 1961. Top International open source organizations including [Kubernates](https://kubernetes.io/) all adopt the form of SIGs, so that members with the same specific interests can share, learn knowledge and develop projects. These members do not need to be in the same country/region or the same organization, as long as they are like-minded, they can all study, work, and play together with the same goals~
-
-PaddleGAN SIG is such a developer organization that brings together people who interested in GAN. There are frontline developers of PaddlePaddle, senior engineers from the world's top 500, and students from top universities at home and abroad.
-
-We are continuing to recruit developers interested and capable to join us building this project and explore more useful and interesting applications together.
-
-SIG contributions:
-
-- [zhen8838](https://github.com/zhen8838): contributed to AnimeGANv2.
-- [Jay9z](https://github.com/Jay9z): contributed to DCGAN and updated install docs, etc.
-- [HighCWu](https://github.com/HighCWu): contributed to c-DCGAN and WGAN. Support to use `paddle.vision.datasets`.
-- [hao-qiang](https://github.com/hao-qiang) & [ minivision-ai ](https://github.com/minivision-ai): contributed to the photo2cartoon project.
-
-
-## Contributing
-
-Contributions and suggestions are highly welcomed. Most contributions require you to agree to a [Contributor License Agreement (CLA)](https://cla-assistant.io/PaddlePaddle/PaddleGAN) declaring.
-When you submit a pull request, a CLA-bot will automatically determine whether you need to provide a CLA. Simply follow the instructions provided by the bot. You will only need to do this once across all repos using our CLA.
-For more, please reference [contribution guidelines](docs/en_US/contribute.md).
-
-## License
-PaddleGAN is released under the [Apache 2.0 license](LICENSE).
+# 参考repo
+[StyleCLIP](https://github.com/orpatashnik/StyleCLIP)
+[StyleCLIP-pytorch](https://github.com/soushirou/StyleCLIP-pytorch)
+[PaddleGAN](https://github.com/PaddlePaddle/PaddleGAN)

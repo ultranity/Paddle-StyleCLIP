@@ -32,7 +32,7 @@ def upfirdn2d_native(input, kernel, up_x, up_y, down_x, down_y, pad_x0, pad_x1,
     out = input.reshape((-1, in_h, 1, in_w, 1, minor))
     out = out.transpose((0, 1, 3, 5, 2, 4))
     out = out.reshape((-1, 1, 1, 1))
-    out = F.pad(out, [0, up_x - 1, 0, up_y - 1])
+    out = F.pad(out, [0, up_x - 1, 0, up_y - 1]) if up_x>1 and up_y>1 else out
     out = out.reshape((-1, in_h, in_w, minor, up_y, up_x))
     out = out.transpose((0, 3, 1, 4, 2, 5))
     out = out.reshape((-1, minor, in_h * up_y, in_w * up_x))
