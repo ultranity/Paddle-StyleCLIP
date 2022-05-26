@@ -1,4 +1,4 @@
-# StyleCLIP: Text-Driven Manipulation of StyleGAN Imagery
+# StyleCLIP: 文本驱动的图像处理
 ## 1. 简介
 
 StyleGAN V2 的任务是使用风格向量进行image generation，而Clip guided Editing 则是利用CLIP (Contrastive Language-Image Pre-training ) 多模态预训练模型计算文本输入对应的风格向量变化，用文字表述来对图像进行编辑操纵风格向量进而操纵生成图像的属性。相比于Editing 模块，StyleCLIP不受预先统计的标注属性限制，可以通过语言描述自由控制图像编辑。
@@ -7,12 +7,18 @@ StyleGAN V2 的任务是使用风格向量进行image generation，而Clip guide
 
 
 ## 2. 复现
-StyleCLIP 模型 需要使用简介重对应提到的几个预训练模型，
+StyleCLIP 模型 需要使用简介中对应提到的几个预训练模型，
 本次复现使用PPGAN 提供的 在FFHQ数据集上进行预训练的StyleGAN V2 模型作为生成器，并使用Pixel2Style2Pixel模型将待编辑图像转换为对应风格向量。
 
-除本repo外还需要安装 Paddle-CLIP 依赖
+CLIP模型依赖Paddle-CLIP实现。
+pSp模型包含人脸检测步骤，依赖dlib框架。
+除本repo外还需要安装 Paddle-CLIP 和 dlib 依赖。
+
+整体安装方法如下。
 ```
+pip install -e .
 pip install paddleclip
+pip install dlib-bin
 ```
 
 [模型训练日志及权重](https://pan.baidu.com/s/1IvFH-_cWf4p5BcHICfLgIA#ep6m)
@@ -70,9 +76,14 @@ pip install paddleclip
 
 ## 3. 使用方法
 ### 训练
-本次仅复现论文中效果最好的 Global Direction 方法。
+在StyleCLIP论文中作者研究了 3 种结合 StyleGAN 和 CLIP 的方法：
+1. 文本引导的风格向量优化，使用 CLIP 模型作为损失网络对现有风格向量进行多次迭代更新，但该方法对每次处理都需要重新训练。
+2. 训练 风格向量映射器，使CLIP文本特征向量映射至StyleGAN 风格向量空间，避免（1）方法的训练问题，但可控性较差，经论文对比其生成质量也不如（3）。
+3. 在 StyleGAN 的 StyleSpace 中，把文本描述映射到输入图像的全局方向 (Global Direction)，进而运行自由控制图像操作强度以及分离程度，实现类似于StyleGAN Editing 模块的使用体验。
 
-StyleClip训练过程分两步：
+本次仅复现论文中效果最好的 （3）Global Direction 方法。
+
+StyleCLIP Global Direction 训练过程分两步：
 1. 提取风格向量并统计
 
 ```
@@ -113,10 +124,6 @@ python -u tools/styleganv2clip.py \
 - output_path: 生成图片存放的文件夹
 - weight_path: 或StyleGANv2 预训练模型路径
 - model_type: 模型类型,当前使用: `ffhq-config-f`
-- size: 模型参数，输出图片的分辨率
-- style_dim: 模型参数，风格z的维度
-- n_mlp: 模型参数，风格z所输入的多层感知层的层数
-- channel_multiplier: 模型参数，通道乘积，影响模型大小和生成图片质量
 - direction_path: 存放CLIP统计向量的文件的路径。默认为空，即使用'fs3.npy'。若不使用，请在命令中去除
 - neutral: 对原图像的中性描述，如 face
 - target: 为对目标图像的描述，如 young face
@@ -124,7 +131,18 @@ python -u tools/styleganv2clip.py \
 - direction_offset: 属性的偏移强度
 - cpu: 是否使用cpu推理，若不使用，请在命令中去除
 
-# 参考repo
-[StyleCLIP](https://github.com/orpatashnik/StyleCLIP)
-[StyleCLIP-pytorch](https://github.com/soushirou/StyleCLIP-pytorch)
-[PaddleGAN](https://github.com/PaddlePaddle/PaddleGAN)
+!以下 参数需与StyleGAN 预训练模型保持一致
+- size: 模型参数，输出图片的分辨率
+- style_dim: 模型参数，风格z的维度
+- n_mlp: 模型参数，风格z所输入的多层感知层的层数
+- channel_multiplier: 模型参数，通道乘积，影响模型大小和生成图片质量
+
+## 复现记录
+1. PaddleGAN 实现中的StyleGAN模型将Style Affine层进行了模块耦合，而论文中使用到的S Space 需要用到，因此对StyleGAN 生成器代码也进行了魔改，增加style_affine 及 synthesis_from_styles 方法同时兼容现有接口。
+2. Paddle Resize处理对Tensor和ndarray的处理方法不同，默认Tensor使用BCHW模式存储而非图像的BHWC。
+3. 现有 uppfirdn2d 模块中似乎存在多次不必要的Tensor拷贝、reshape过程，希望后续能够优化运算及显存占用。
+
+## 参考repo
+- [StyleCLIP](https://github.com/orpatashnik/StyleCLIP)
+- [StyleCLIP-pytorch](https://github.com/soushirou/StyleCLIP-pytorch)
+- [PaddleGAN](https://github.com/PaddlePaddle/PaddleGAN)
