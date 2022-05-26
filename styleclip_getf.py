@@ -66,5 +66,5 @@ if __name__ == '__main__':
         s_lst = concat_style_np(s_lst, len(w_idx_lst))
         s_mean = [paddle.mean(paddle.to_tensor(s_lst[i]), axis=0) for i in range(len(w_idx_lst))]
         s_std = [paddle.std(paddle.to_tensor(s_lst[i]), axis=0) for i in range(len(w_idx_lst))]
-        paddle.save({'mean':s_mean, 'std':s_std}, f'S_stat-{dataset_name}.pdparams')
+        paddle.save({'mean':s_mean, 'std':s_std}, f'stylegan2-{dataset_name}-styleclip-stats.pdparams')
     print("Done.")

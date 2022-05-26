@@ -198,13 +198,18 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
     """Extract global style direction in 100 images
     """
     assert len(lst_alpha) == 2 #[-5, 5]
-    
-    assert num < 2000
-    S = paddle.load(f'S_stat-{dataset_name}.pdparams')
-    S = [S[i][:num] for i in range(len(G.w_idx_lst))]
-    
+    assert num < 200
+    # get intermediate latent of n samples
+    try:
+        S = paddle.load(f'S-{dataset_name}.pdparams')
+        S = [S[i][:num] for i in range(len(G.w_idx_lst))]
+    except:
+        z = paddle.randn([num, G.style_dim])
+        w = G.get_latents(z, truncation=0.7)
+        S = G.style_affine(w)
+        del z,w
     # total channel used: 1024 -> 6048 channels, 256 -> 4928 channels
-    print(f"total channels to manipulate: {sum(G.channels_lst)}")
+    print(f"total channels to manipulate: {sum([G.channels_lst[i] for i in G.style_layers])}")
     
     manipulator = Manipulator(G, dataset_name=dataset_name)
     preprocess, transforms, full_transforms = get_clip_transforms()
@@ -214,12 +219,11 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
     all_feats = list()
     for layer in G.style_layers:
         print(f'\nStyle manipulation in layer "{layer}"')
-        channel_num = manipulator.styles[layer].shape[1]
-        for channel_ind in tqdm(range(channel_num), total=channel_num):
+        for channel_ind in tqdm(range(G.channels_lst[layer])):
             styles = manipulator.manipulate_one_channel(S, layer, channel_ind, lst_alpha, num)
             # 2 * num images
             feats = list()
-            for img_ind in tqdm(range(0, nbatch)): # batch size 10 * 2
+            for img_ind in range(nbatch): # batch size 10 * 2
                 start = img_ind*batchsize
                 end = img_ind*batchsize + batchsize
                 synth_imgs = manipulator.synthesis_from_styles(styles, [start, end])
@@ -243,7 +247,7 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
     fs3=fs3.mean(axis=1)  #L 512
     fs3=fs3/np.linalg.norm(fs3,axis=-1, keepdims=True)
 
-    np.save(f'fs3-{dataset_name}.npy', fs3) # global style direction
+    paddle.save(paddle.to_tensor(fs3), f'stylegan2-{dataset_name}-styleclip-global-directions.pdparams') # global style direction
 
 class Manipulator():
     """Manipulator for style editing

@@ -141,7 +141,7 @@ python -u tools/styleganv2clip.py \
 1. PaddleGAN 实现中的StyleGAN模型将Style Affine层进行了模块耦合，而论文中使用到的S Space 需要用到，因此对StyleGAN 生成器代码也进行了魔改，增加style_affine 及 synthesis_from_styles 方法同时兼容现有接口。
 2. Paddle Resize处理对Tensor和ndarray的处理方法不同，默认Tensor使用BCHW模式存储而非图像的BHWC。
 3. 现有 uppfirdn2d 模块中似乎存在多次不必要的Tensor拷贝、reshape过程，希望后续能够优化运算及显存占用。
-
+4. 切片拷贝：paddle中对Tensor进行切片时（有时）会创建新的拷贝，此时再对其进行赋值很可能不生效，两种写法`a[ind1][ind2]=0` 和 `a[ind1, ind2]=0` 前者并不改变a中的参数。
 ## 参考repo
 - [StyleCLIP](https://github.com/orpatashnik/StyleCLIP)
 - [StyleCLIP-pytorch](https://github.com/soushirou/StyleCLIP-pytorch)
