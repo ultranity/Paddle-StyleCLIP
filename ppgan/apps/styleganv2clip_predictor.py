@@ -224,11 +224,11 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
             styles = manipulator.manipulate_one_channel(copy.deepcopy(S), layer, channel_ind, lst_alpha, num)
             # 2 * num images
             feats = list()
-            for img_ind in range(nbatch): # batch size 10 * 2
+            for img_ind in range(nbatch): # batch size * nbatch * 2
                 start = img_ind*batchsize
                 end = img_ind*batchsize + batchsize
                 synth_imgs = manipulator.synthesis_from_styles(styles, [start, end])
-                synth_imgs = [full_transforms((img+1)/2).clip(0,1) for synth_img in synth_imgs for img in synth_img]
+                synth_imgs = [full_transforms(((img+1)/2).clip(0,1)) for synth_img in synth_imgs for img in synth_img]
                 feat = model.encode_image(paddle.stack(synth_imgs))
                 feats.append(feat.numpy())
                 #for synth_img in synth_imgs:
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     runtype = args.runtype
     if  runtype in ['test', 'extract']:
         dataset_name = args.dataset_name
-        G = StyleGANv2ClipPredictor(dataset_name).generator
+        G = StyleGANv2Predictor(model_type=dataset_name).generator
         if runtype == 'test': # test manipulator
             from ppgan.utils.visual import make_grid, tensor2img, save_image
             num_images = 2
