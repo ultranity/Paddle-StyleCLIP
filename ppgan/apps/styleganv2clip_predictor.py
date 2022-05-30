@@ -199,15 +199,16 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
     """
     assert len(lst_alpha) == 2 #[-5, 5]
     assert num < 200
+    #np.random.seed(0)
     # get intermediate latent of n samples
     try:
         S = paddle.load(f'S-{dataset_name}.pdparams')
         S = [S[i][:num] for i in range(len(G.w_idx_lst))]
     except:
+        #z = paddle.to_tensor(np.random.randn(num, G.style_dim), dtype='float32')
         z = paddle.randn([num, G.style_dim])
         w = G.get_latents(z, truncation=0.7)
         S = G.style_affine(w)
-        del z,w
     # total channel used: 1024 -> 6048 channels, 256 -> 4928 channels
     print(f"total channels to manipulate: {sum([G.channels_lst[i] for i in G.style_layers])}")
     
@@ -220,7 +221,7 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
     for layer in G.style_layers:
         print(f'\nStyle manipulation in layer "{layer}"')
         for channel_ind in tqdm(range(G.channels_lst[layer])):
-            styles = manipulator.manipulate_one_channel(S, layer, channel_ind, lst_alpha, num)
+            styles = manipulator.manipulate_one_channel(copy.deepcopy(S), layer, channel_ind, lst_alpha, num)
             # 2 * num images
             feats = list()
             for img_ind in range(nbatch): # batch size 10 * 2
@@ -235,9 +236,6 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
                 #        feat = model.encode_image(full_transforms((img+1)/2).clip(0,1).unsqueeze(0))
                 #        feats.append(feat.numpy())
             all_feats.append(np.concatenate(feats).reshape([2, -1, 512]))
-            if channel_ind==10: break
-        break
-    del G, manipulator
     all_feats = np.stack(all_feats)
 
     fs = all_feats #L 2 B 512
@@ -362,7 +360,7 @@ if __name__ == '__main__':
                    f'sample.png')
         elif runtype == 'extract': # extract global style direction from "tensor/S.pt"
             batchsize = 2
-            num_images = 10
+            num_images = 100
             lst_alpha = [-5, 5]
             extract_global_direction(G, lst_alpha, batchsize, num_images, dataset_name=dataset_name)
     else:

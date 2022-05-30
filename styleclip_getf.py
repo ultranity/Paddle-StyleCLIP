@@ -46,14 +46,14 @@ if __name__ == '__main__':
         for i in tqdm(range(1000)): # 100 * 1000 = 100000 # 1000
             # apply truncation_psi=.7
             w_lst.append(G.get_latents(z[i], truncation=0.7))
-        #paddle.save(paddle.concat(w_lst[:20]), f'W-{dataset_name}.bin')
+        #paddle.save(paddle.concat(w_lst[:20]), f'W-{dataset_name}.pdparams')
 
         s_lst = []
         # get style of first 2000 sample in W
         for i in tqdm(range(20)): # 2*1000
             s_ = G.style_affine(w_lst[i])
             s_lst.append(s_)
-        #paddle.save(concat_style_paddle(s_lst, len(w_idx_lst)), f'S-{dataset_name}.bin')
+        paddle.save(concat_style_paddle(s_lst, len(w_idx_lst)), f'S-{dataset_name}.pdparams')
         
         for i in tqdm(range(20)): # 2*1000
             s_lst[i] = to_np(s_lst[i])

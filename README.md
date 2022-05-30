@@ -21,7 +21,7 @@ pip install paddleclip
 pip install dlib-bin
 ```
 
-[模型训练日志及权重](https://pan.baidu.com/s/1IvFH-_cWf4p5BcHICfLgIA#ep6m)
+[模型训练日志及权重 (提取码: ep6m)](https://pan.baidu.com/s/1IvFH-_cWf4p5BcHICfLgIA#ep6m)
 
 ### 编辑结果展示
 
