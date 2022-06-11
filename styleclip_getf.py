@@ -33,19 +33,22 @@ def concat_style_np(s_lst, n_layers):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', type=str, default='ffhq-config-f')
+    parser.add_argument('--seed', type=int, default=1234)
     args = parser.parse_args()
 
     dataset_name = args.dataset_name
     G = StyleGANv2Predictor(model_type=dataset_name).generator
     w_idx_lst = G.w_idx_lst
+
+    
     with paddle.no_grad():
         # get intermediate latent of 100000 samples
         w_lst = list()
-        #z = paddle.to_tensor(np.random.RandomState(seed).randn(100_000, G.G.style_dim))
-        z = paddle.randn([1000, 100, G.style_dim])
+        z = paddle.to_tensor(np.random.RandomState(args.seed).randn(1000, 100, G.style_dim).astype('float32'))
+        #z = paddle.randn([1000, 100, G.style_dim])
         for i in tqdm(range(1000)): # 100 * 1000 = 100000 # 1000
             # apply truncation_psi=.7
-            w_lst.append(G.get_latents(z[i], truncation=0.7))
+            w_lst.append(G.get_latents(z[i], truncation=0.7, truncation_cutoff=8))
         #paddle.save(paddle.concat(w_lst[:20]), f'W-{dataset_name}.pdparams')
 
         s_lst = []

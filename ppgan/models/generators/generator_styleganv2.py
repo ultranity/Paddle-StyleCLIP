@@ -384,7 +384,7 @@ class StyleGANv2Generator(nn.Layer):
         return self.style(inputs)
 
     def get_latents(self, inputs, truncation=1.0, truncation_cutoff=None, truncation_latent=None):
-        styles = self.style(inputs).unsqueeze(1).tile([1, self.n_latent, 1])
+        styles = self.style(inputs)
         if truncation < 1.0:
             if truncation_latent is None:
                 truncation_latent = self.get_mean_style()
@@ -392,7 +392,7 @@ class StyleGANv2Generator(nn.Layer):
                 styles = truncation_latent + truncation * (styles - truncation_latent)
             else:
                 styles[:,:truncation_cutoff] = truncation_latent[:,:truncation_cutoff] + truncation * (styles[:,:truncation_cutoff] - truncation_latent[:,:truncation_cutoff])
-        return styles
+        return styles#.unsqueeze(1).tile([1, self.n_latent, 1])
 
     @paddle.no_grad()
     def get_mean_style(self, n_sample=10, n_latent=1024):
@@ -410,11 +410,11 @@ class StyleGANv2Generator(nn.Layer):
     def mean_latent_S(self, n_latent):
         latent_in = paddle.randn((n_latent, self.style_dim))
         latent = self.style(latent_in)
-        latent = self.style_affine_(latent).mean(0, keepdim=True)
+        latent = self.style_affine(latent).mean(0, keepdim=True)
         return latent
 
     def get_latent_S(self, inputs):
-        return self.style_affine_(self.style(inputs))
+        return self.style_affine(self.style(inputs))
 
     @paddle.no_grad()
     def get_mean_style_S(self, n_sample=10, n_latent=1024):

@@ -175,26 +175,10 @@ class StyleGANv2ClipPredictor(StyleGANv2Predictor):
         paddle.save(dst_latent, save_path)
         return src_img, dst_img, dst_latent
 
-def get_clip_transforms(image_resolution = 224):
-    from paddle.vision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
-    preprocess = Resize(image_resolution,interpolation='bicubic')
-    transforms = Compose([
-                    ToTensor(),
-                    Normalize((0.48145466, 0.4578275, 0.40821073),
-                            (0.26862954, 0.26130258, 0.27577711)),
-                    ])
-    full_transforms = Compose([
-                    Resize(image_resolution,interpolation='bicubic'),
-                    #Resize(image_resolution,interpolation='nearest'),
-                    ToTensor(),
-                    Normalize((0.48145466, 0.4578275, 0.40821073),
-                            (0.26862954, 0.26130258, 0.27577711)),
-                    ])
-    return preprocess, transforms, full_transforms
-
 @paddle.no_grad()
 def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=''):
     from tqdm import tqdm
+    import PIL
     """Extract global style direction in 100 images
     """
     assert len(lst_alpha) == 2 #[-5, 5]
@@ -205,16 +189,13 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
         S = paddle.load(f'S-{dataset_name}.pdparams')
         S = [S[i][:num] for i in range(len(G.w_idx_lst))]
     except:
-        #z = paddle.to_tensor(np.random.randn(num, G.style_dim), dtype='float32')
-        z = paddle.randn([num, G.style_dim])
-        w = G.get_latents(z, truncation=0.7)
-        S = G.style_affine(w)
+        print('No pre-computed S, run getf.py first!')
+        exit()
     # total channel used: 1024 -> 6048 channels, 256 -> 4928 channels
     print(f"total channels to manipulate: {sum([G.channels_lst[i] for i in G.style_layers])}")
     
     manipulator = Manipulator(G, dataset_name=dataset_name)
-    preprocess, transforms, full_transforms = get_clip_transforms()
-    model, _ = load_model('ViT_B_32', pretrained=True)
+    model, preprocess = load_model('ViT_B_32', pretrained=True)
     
     nbatch = int(num / batchsize)
     all_feats = list()
@@ -228,22 +209,26 @@ def extract_global_direction(G, lst_alpha, batchsize = 5, num=100, dataset_name=
                 start = img_ind*batchsize
                 end = img_ind*batchsize + batchsize
                 synth_imgs = manipulator.synthesis_from_styles(styles, [start, end])
-                synth_imgs = [full_transforms(((img+1)/2).clip(0,1)) for synth_img in synth_imgs for img in synth_img]
-                feat = model.encode_image(paddle.stack(synth_imgs))
+                synth_imgs = [(synth_img.transpose((0,2,3,1))*127.5+128).clip(0,255).astype('uint8').numpy()
+                            for synth_img in synth_imgs]
+                imgs = list()
+                for i in range(batchsize):
+                    img0 = PIL.Image.fromarray(synth_imgs[0][i])
+                    img1 = PIL.Image.fromarray(synth_imgs[1][i])
+                    imgs.append(preprocess(img0).unsqueeze(0))
+                    imgs.append(preprocess(img1).unsqueeze(0))
+                feat = model.encode_image(paddle.concat(imgs))
                 feats.append(feat.numpy())
-                #for synth_img in synth_imgs:
-                #    for img in synth_img:
-                #        feat = model.encode_image(full_transforms((img+1)/2).clip(0,1).unsqueeze(0))
-                #        feats.append(feat.numpy())
-            all_feats.append(np.concatenate(feats).reshape([2, -1, 512]))
+            all_feats.append(np.concatenate(feats).reshape([ -1, 2, 512]))
     all_feats = np.stack(all_feats)
-
-    fs = all_feats #L 2 B 512
-    fs1=fs/np.linalg.norm(fs,axis=-1, keepdims=True)
-    fs2=fs1[:,1,:,:]-fs1[:,0,:,:] # 5*sigma - (-5)*sigma  #L B 512
-    fs3=fs2/np.linalg.norm(fs2,axis=-1, keepdims=True)
-    fs3=fs3.mean(axis=1)  #L 512
-    fs3=fs3/np.linalg.norm(fs3,axis=-1, keepdims=True)
+    np.save(f'fs-{dataset_name}.npy', all_feats)
+    
+    fs = all_feats #L B 2 512
+    fs1=fs/np.linalg.norm(fs,axis=-1)[:,:,:,None]
+    fs2=fs1[:,:,1,:]-fs1[:,:,0,:]  # 5*sigma - (-5)* sigma
+    fs3=fs2/np.linalg.norm(fs2,axis=-1)[:,:,None]
+    fs3=fs3.mean(axis=1)
+    fs3=fs3/np.linalg.norm(fs3,axis=-1)[:,None]
 
     paddle.save(paddle.to_tensor(fs3), f'stylegan2-{dataset_name}-styleclip-global-directions.pdparams') # global style direction
 
@@ -297,7 +282,7 @@ class Manipulator():
         return styles
 
     @paddle.no_grad()
-    def synthesis_from_styles(self, styles, slice=None):
+    def synthesis_from_styles(self, styles, slice=None, randomize_noise=True):
         """Synthesis edited styles from styles, lst_alpha
         """
         imgs = list()
@@ -306,10 +291,10 @@ class Manipulator():
                 style_ = [list() for _ in range(len(self.generator.w_idx_lst))]
                 for i in range(len(self.generator.w_idx_lst)):
                     style_[i] = style[i][slice[0]:slice[1]]
-                imgs.append(self.generator.synthesis(style_, randomize_noise=False))
+                imgs.append(self.generator.synthesis(style_, randomize_noise=randomize_noise))
         else:
             for style in styles:
-                imgs.append(self.generator.synthesis(style, randomize_noise=False))
+                imgs.append(self.generator.synthesis(style, randomize_noise=randomize_noise))
         return imgs
 
 if __name__ == '__main__':
@@ -359,7 +344,7 @@ if __name__ == '__main__':
             save_image(tensor2img(make_grid(paddle.concat(imgs), nrow=num_images)),
                    f'sample.png')
         elif runtype == 'extract': # extract global style direction from "tensor/S.pt"
-            batchsize = 2
+            batchsize = 10
             num_images = 100
             lst_alpha = [-5, 5]
             extract_global_direction(G, lst_alpha, batchsize, num_images, dataset_name=dataset_name)

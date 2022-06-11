@@ -142,6 +142,8 @@ python -u tools/styleganv2clip.py \
 2. Paddle Resize处理对Tensor和ndarray的处理方法不同，默认Tensor使用BCHW模式存储而非图像的BHWC。
 3. 现有 uppfirdn2d 模块中似乎存在多次不必要的Tensor拷贝、reshape过程，希望后续能够优化运算及显存占用。
 4. 切片拷贝：paddle中对Tensor进行切片时（有时）会创建新的拷贝，此时再对其进行赋值很可能不生效，两种写法`a[ind1][ind2]=0` 和 `a[ind1, ind2]=0` 前者并不改变a中的参数。
+5. StyleCLIP论文中表示使用100张图像进行Global Direction 训练在V1080Ti需要约4h,但使用V100的训练数据及官方repo中也有issue提到实际需要约24h，该问题但作者还未能给出解答。
+
 ## 参考repo
 - [StyleCLIP](https://github.com/orpatashnik/StyleCLIP)
 - [StyleCLIP-pytorch](https://github.com/soushirou/StyleCLIP-pytorch)
